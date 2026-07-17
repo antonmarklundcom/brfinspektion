@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { projectWhereForSession, stripOwnerOnlyFields } from "@/lib/access";
@@ -32,7 +33,11 @@ export default async function KunderPage() {
               const safeCustomer = stripOwnerOnlyFields(session.user, customer);
               return (
                 <tr key={safeCustomer.id} className="border-b border-slate-100 last:border-0">
-                  <td className="px-4 py-3">{safeCustomer.brfNamn}</td>
+                  <td className="px-4 py-3">
+                    <Link href={`/admin/kunder/${safeCustomer.id}`} className="text-blue-800 hover:underline">
+                      {safeCustomer.brfNamn}
+                    </Link>
+                  </td>
                   <td className="px-4 py-3 text-slate-500">{safeCustomer.kommun ?? "—"}</td>
                   <td className="px-4 py-3 text-slate-500">{safeCustomer.epost ?? "—"}</td>
                 </tr>

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { AccessSession, leadWhereForSession } from "@/lib/access";
+import { AccessSession, assertOwner, leadWhereForSession } from "@/lib/access";
 import { LeadStatus } from "@prisma/client";
 
 export async function listLeadsForSession(session: AccessSession) {
@@ -31,4 +31,22 @@ export async function setLeadStatus(
     });
     return updated;
   });
+}
+
+/**
+ * OWNER-only: deciding which partner a lead belongs to is a triage
+ * decision, not something a partner should be able to grant themselves
+ * (that would let a PARTNER session assign leads to their own partnerId
+ * and gain visibility into records they weren't given).
+ */
+export async function assignLeadToPartner(
+  session: AccessSession,
+  id: string,
+  partnerId: string | null,
+) {
+  assertOwner(session);
+  const lead = await getLeadForSession(session, id);
+  if (!lead) return null;
+
+  return prisma.lead.update({ where: { id }, data: { assignedPartnerId: partnerId } });
 }
