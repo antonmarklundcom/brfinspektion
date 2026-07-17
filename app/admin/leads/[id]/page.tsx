@@ -1,9 +1,23 @@
-import { notFound } from "next/navigation";
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
-import { getLeadForSession, setLeadStatus } from "@/lib/leads";
+import { assignLeadToPartner, getLeadForSession, setLeadStatus } from "@/lib/leads";
+import { convertLeadToCustomer } from "@/lib/customers";
 import { prisma } from "@/lib/prisma";
-import { LeadStatus } from "@prisma/client";
+import { LeadStatus, ServiceType } from "@prisma/client";
+
+const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
+  STATUSBESIKTNING: "Statusbesiktning",
+  UPPHANDLINGSSTOD: "Upphandlingsstöd",
+  KONTROLLANSVARIG: "Kontrollansvarig",
+  ENTREPRENADBESIKTNING: "Entreprenadbesiktning",
+  GARANTIBESIKTNING_2AR: "Garantibesiktning (2 år)",
+  GARANTIBESIKTNING_5AR: "Garantibesiktning (5 år)",
+  OVK: "OVK-besiktning",
+  UNDERHALLSPLAN: "Underhållsplan",
+  OVRIGT: "Övrigt",
+};
 
 export default async function LeadDetailPage({
   params,
@@ -22,6 +36,8 @@ export default async function LeadDetailPage({
     orderBy: { createdAt: "desc" },
     include: { author: true },
   });
+
+  const partners = session.user.role === "OWNER" ? await prisma.partner.findMany() : [];
 
   async function updateStatus(formData: FormData) {
     "use server";
@@ -42,6 +58,32 @@ export default async function LeadDetailPage({
       data: { leadId: id, body, authorId: currentSession.user.id },
     });
     revalidatePath(`/admin/leads/${id}`);
+  }
+
+  async function assignPartner(formData: FormData) {
+    "use server";
+    const currentSession = await auth();
+    if (!currentSession?.user) return;
+    const partnerId = (formData.get("partnerId") as string) || null;
+    await assignLeadToPartner(currentSession.user, id, partnerId);
+    revalidatePath(`/admin/leads/${id}`);
+  }
+
+  async function convertToCustomer(formData: FormData) {
+    "use server";
+    const currentSession = await auth();
+    if (!currentSession?.user?.id) return;
+    const serviceType = formData.get("serviceType") as ServiceType;
+    const partnerId = (formData.get("conversionPartnerId") as string) || null;
+    const result = await convertLeadToCustomer(
+      currentSession.user,
+      id,
+      { serviceType, partnerId },
+      currentSession.user.id,
+    );
+    if (result) {
+      redirect(`/admin/kunder/${result.customer.id}`);
+    }
   }
 
   return (
@@ -137,6 +179,90 @@ export default async function LeadDetailPage({
           </ul>
         </div>
       </div>
+
+      {session.user.role === "OWNER" && (
+        <div className="mt-6 grid gap-6 md:grid-cols-2">
+          <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <h2 className="font-medium text-slate-900">Tilldela partner</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Styr vilken partner som får se denna lead i sin egen vy.
+            </p>
+            <form action={assignPartner} className="mt-3 flex gap-2">
+              <select
+                name="partnerId"
+                defaultValue={lead.assignedPartnerId ?? ""}
+                className="rounded-md border border-slate-300 px-3 py-2 text-sm"
+              >
+                <option value="">Ingen</option>
+                {partners.map((partner) => (
+                  <option key={partner.id} value={partner.id}>
+                    {partner.name}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="submit"
+                className="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:border-slate-400"
+              >
+                Spara
+              </button>
+            </form>
+          </div>
+
+          <div className="rounded-lg border border-slate-200 bg-white p-5">
+            <h2 className="font-medium text-slate-900">Konvertera till kund</h2>
+            {lead.customerId ? (
+              <p className="mt-2 text-sm text-slate-600">
+                Redan kopplad till en kund.{" "}
+                <Link href={`/admin/kunder/${lead.customerId}`} className="text-blue-800 underline">
+                  Öppna kundpost
+                </Link>
+              </p>
+            ) : (
+              <>
+                <p className="mt-1 text-sm text-slate-500">
+                  Skapar en kundpost och ett projekt av denna lead, och sätter status till WON.
+                </p>
+                <form action={convertToCustomer} className="mt-3 space-y-2">
+                  <select
+                    name="serviceType"
+                    defaultValue={lead.interestedIn ?? ""}
+                    required
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="" disabled>
+                      Välj tjänst
+                    </option>
+                    {Object.entries(SERVICE_TYPE_LABELS).map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    name="conversionPartnerId"
+                    defaultValue={lead.assignedPartnerId ?? ""}
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">Ingen partner vald</option>
+                    {partners.map((partner) => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="submit"
+                    className="rounded-md bg-blue-800 px-4 py-2 text-sm font-medium text-white hover:bg-blue-900"
+                  >
+                    Konvertera till kund
+                  </button>
+                </form>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

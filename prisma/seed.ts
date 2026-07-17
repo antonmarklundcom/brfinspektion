@@ -26,6 +26,36 @@ async function main() {
   });
 
   console.info(`Seeded OWNER user: ${ownerEmail}`);
+
+  // Partner org records only — no login users, no real names or
+  // certifications (plan.md D10, D2: revenue-share terms and credentials
+  // are not finalized). These exist so leads/projects can be assigned to
+  // a partner in the admin UI before real partner logins are created.
+  await prisma.partner.upsert({
+    where: { name: "Partner A — KA/besiktning" },
+    update: {},
+    create: {
+      name: "Partner A — KA/besiktning",
+      services: [
+        "KONTROLLANSVARIG",
+        "ENTREPRENADBESIKTNING",
+        "GARANTIBESIKTNING_2AR",
+        "GARANTIBESIKTNING_5AR",
+        "OVK",
+      ],
+    },
+  });
+
+  await prisma.partner.upsert({
+    where: { name: "Partner B — Statusbedömning" },
+    update: {},
+    create: {
+      name: "Partner B — Statusbedömning",
+      services: ["STATUSBESIKTNING", "UPPHANDLINGSSTOD", "UNDERHALLSPLAN"],
+    },
+  });
+
+  console.info("Seeded Partner A and Partner B org records (no logins)");
 }
 
 main()
