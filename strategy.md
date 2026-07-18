@@ -186,7 +186,10 @@ generate any signal — the operator sets the number; the recommendation is to c
 2. D4 partial: fresh KWP pull on the six gap terms (kontrollansvarig kostnad,
    besiktningsman kostnad, ovk kostnad, relining vs stambyte, kontrollansvarig brf,
    entreprenadbesiktning) — add to campaigns only if data supports.
-3. Manual SERP check on top 5–6 commercial terms recorded in `research/serp-notes.md` (D6).
+3. ~~Manual SERP check on top 5–6 commercial terms~~ — done, see `research/serp-notes.md`
+   (D6). That pass used general web search, not a live Google.se SERP; a real incognito
+   Google.se search from Sweden immediately before setting live bids is still recommended,
+   per the caveat at the top of that file.
 4. Conversion tracking verified firing (architecture.md §6.2).
 5. §7.1 partner terms signed — **or** operator explicitly accepts running Ads while terms
    are pending (leads captured and held). Anton's call, recorded in writing.
