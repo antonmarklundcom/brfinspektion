@@ -1,0 +1,103 @@
+import { test, expect } from "@playwright/test";
+
+const hasDb = Boolean(process.env.DATABASE_URL);
+const hasOwnerCreds = Boolean(process.env.SEED_OWNER_EMAIL && process.env.SEED_OWNER_PASSWORD);
+
+test.describe("public site (architecture.md §9 test #5)", () => {
+  test("homepage renders with title and FAQPage schema", async ({ page }) => {
+    await page.goto("/");
+    await expect(page).toHaveTitle(/BRF Inspektion/);
+    await expect(page.locator("h1")).toContainText("bostadsrättsförening");
+
+    const schemaTypes = await page
+      .locator('script[type="application/ld+json"]')
+      .evaluateAll((nodes) => nodes.map((n) => JSON.parse(n.textContent ?? "{}")["@type"]));
+    expect(schemaTypes).toContain("FAQPage");
+    expect(schemaTypes).toContain("Organization");
+  });
+
+  test("garantibesiktning consolidates the keyword variants with Service + FAQPage schema", async ({
+    page,
+  }) => {
+    await page.goto("/garantibesiktning");
+    await expect(page.locator("h1")).toContainText("garantibesiktning");
+
+    const schemas = await page
+      .locator('script[type="application/ld+json"]')
+      .evaluateAll((nodes) => nodes.map((n) => JSON.parse(n.textContent ?? "{}")));
+    const types = schemas.map((s) => s["@type"]);
+    expect(types).toContain("Service");
+    expect(types).toContain("FAQPage");
+
+    const faq = schemas.find((s) => s["@type"] === "FAQPage");
+    expect(faq.mainEntity.length).toBeGreaterThanOrEqual(5);
+  });
+
+  test("sitemap.xml and robots.txt respond and robots disallows /admin", async ({ request }) => {
+    const sitemap = await request.get("/sitemap.xml");
+    expect(sitemap.ok()).toBeTruthy();
+
+    const robots = await request.get("/robots.txt");
+    expect(robots.ok()).toBeTruthy();
+    expect(await robots.text()).toContain("Disallow: /admin");
+  });
+
+  test("unauthenticated /admin redirects to login", async ({ page }) => {
+    await page.goto("/admin");
+    await expect(page).toHaveURL(/\/admin\/logga-in/);
+  });
+});
+
+test.describe("calculator lead capture", () => {
+  test.skip(!hasDb, "requires DATABASE_URL");
+
+  test("happy path: fill form, submit, see risk result", async ({ page }) => {
+    await page.goto("/kostnadskalkyl");
+
+    await page.fill("#byggAr", "1965");
+    await page.fill("#antalLagenheter", "24");
+    await page.selectOption("#stamTyp", "GJUTJARN");
+    await page.selectOption("#senasteStambyte", "ALDRIG");
+    await page.fill("#brfNamn", `Brf Playwright ${Date.now()}`);
+    await page.fill("#kontaktNamn", "Test Testsson");
+    await page.fill("#epost", "playwright-test@example.com");
+    await page.check("#consent");
+    await page.click('button[type="submit"]');
+
+    await expect(page.getByText(/SEK/)).toBeVisible({ timeout: 10_000 });
+    await expect(page.getByText("Boka en statusbesiktning")).toBeVisible();
+  });
+});
+
+test.describe("contact form lead capture", () => {
+  test.skip(!hasDb, "requires DATABASE_URL");
+
+  test("submits and shows a thank-you message", async ({ page }) => {
+    await page.goto("/kontakt");
+    await page.fill("#brfNamn", `Brf Kontakt ${Date.now()}`);
+    await page.fill("#kontaktNamn", "Kontaktperson Testsson");
+    await page.fill("#epost", "playwright-kontakt@example.com");
+    await page.check("#consent");
+    await page.click('button[type="submit"]');
+
+    await expect(page.getByText("Tack!")).toBeVisible({ timeout: 10_000 });
+  });
+});
+
+test.describe("admin", () => {
+  test.skip(!hasDb || !hasOwnerCreds, "requires DATABASE_URL and SEED_OWNER_EMAIL/PASSWORD");
+
+  test("owner can log in and see the leads pipeline", async ({ page }) => {
+    await page.goto("/admin/logga-in");
+    await page.fill("#email", process.env.SEED_OWNER_EMAIL!);
+    await page.fill("#password", process.env.SEED_OWNER_PASSWORD!);
+    // Scoped to the login form itself — the authenticated admin shell (a
+    // different route group as of this fix) also has a "submit" button
+    // (sign out), so an unscoped selector is ambiguous.
+    await page.getByRole("button", { name: "Logga in" }).click();
+
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 10_000 });
+    await page.goto("/admin/leads");
+    await expect(page.locator("h1")).toContainText("Leads");
+  });
+});

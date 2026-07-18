@@ -5,9 +5,32 @@ on:
   push:
     branches: [main]
 
+env:
+  DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brfinspektion_ci
+  DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brfinspektion_ci
+  AUTH_SECRET: ci-only-secret-not-used-in-production
+  AUTH_URL: http://localhost:3000
+  RESEND_API_KEY: ""
+  NOTIFY_EMAIL: ci@example.com
+  SEED_OWNER_EMAIL: owner@example.com
+  SEED_OWNER_PASSWORD: ci-owner-password
+
 jobs:
   lint-typecheck-test:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brfinspektion_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -16,7 +39,36 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx prisma generate
+      - run: npx prisma migrate deploy
       - run: npm run lint
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+
+  e2e:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: brfinspektion_ci
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npx prisma generate
+      - run: npx prisma migrate deploy
+      - run: npm run db:seed
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e

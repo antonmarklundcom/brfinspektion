@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { LeadType, StamTyp } from "@prisma/client";
+import { trackEvent } from "@/lib/analytics";
 
 const STAM_TYP_LABELS: Record<StamTyp, string> = {
   GJUTJARN: "Gjutjärn",
@@ -69,6 +70,7 @@ export function CalculatorForm() {
       });
       if (!response.ok) throw new Error("submit failed");
       const data = await response.json();
+      trackEvent("calculator_submit");
       setResult(data.result);
     } catch {
       setError(true);

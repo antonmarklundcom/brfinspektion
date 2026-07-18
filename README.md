@@ -33,16 +33,26 @@ see architecture.md §1).
 | `npm run lint` | ESLint |
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest unit tests (pure logic only, no DB required) |
-| `npm run test:e2e` | Playwright smoke suite (not yet added — see plan.md Phase 1) |
+| `npm run test:e2e` | Playwright smoke suite (architecture.md §9 test #5) |
 | `npm run db:generate` | Regenerate Prisma client after schema changes |
 | `npm run db:migrate:dev` | Create/apply a migration locally |
 | `npm run db:migrate:deploy` | Apply pending migrations in production (uses `DIRECT_URL`) |
 | `npm run db:seed` | Seed the initial OWNER user |
 | `npm run db:studio` | Prisma Studio |
 
-Some tests in `tests/` (e.g. `tests/followups.test.ts`) are integration tests that require a
-real `DATABASE_URL` and are skipped automatically when one isn't set. CI must provide a
-disposable test database for that suite to run for real.
+Some tests in `tests/` (e.g. `tests/followups.test.ts`, `tests/crm-loop.test.ts`) are
+integration tests that require a real `DATABASE_URL` and are skipped automatically when one
+isn't set. CI provides a disposable Postgres service container for that suite to run for real
+(see `.github/workflows/ci.yml`).
+
+`npm run test:e2e` (Playwright) needs `DATABASE_URL`/`DIRECT_URL` (migrated + seeded) and
+`SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD` set to exercise the calculator, contact form, and
+admin login flows — without them those specs skip and only the DB-independent specs
+(homepage, schema markup, sitemap/robots, unauthenticated `/admin` redirect) run. It builds
+and starts the app itself (`webServer` in `playwright.config.ts`), so no separate `npm run
+dev` is needed first. If your environment pre-installs a Chromium revision that doesn't match
+this repo's pinned `@playwright/test` version, set `PLAYWRIGHT_CHROMIUM_PATH` to that binary
+instead of running `playwright install`.
 
 ## Environment variables
 
@@ -68,8 +78,10 @@ Full details in `architecture.md` §8. Summary:
 
 ## Creating a partner user
 
-No admin UI for user creation yet (Phase 2, see `plan.md`). Until then, create partner users
-directly via Prisma Studio (`npm run db:studio`) or a one-off script modeled on
+`npm run db:seed` creates the Partner A / Partner B org records automatically (name and
+service types only — no credentials, since revenue-share terms aren't finalized, see
+plan.md D2/D10). There's no admin UI for creating partner *logins* yet. Until then, create
+partner users directly via Prisma Studio (`npm run db:studio`) or a one-off script modeled on
 `prisma/seed.ts` — set `role: "PARTNER"` and `partnerId` to the relevant `Partner` record.
 
 ## Open items before this is a finished product

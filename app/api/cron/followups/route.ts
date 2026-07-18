@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, notifyEmailAddress } from "@/lib/email";
+import { sendDailyDigest } from "@/lib/digest";
+import { sweepMissingLeadFollowUps } from "@/lib/followups";
 
 // Invoked daily by an external scheduler (Hostinger hPanel cron or
 // cron-job.org — architecture.md §6.4, operator to confirm which).
@@ -47,5 +49,8 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  return NextResponse.json({ ok: true, notified: dueTasks.length });
+  await sendDailyDigest();
+  const sweptCount = await sweepMissingLeadFollowUps();
+
+  return NextResponse.json({ ok: true, notified: dueTasks.length, swept: sweptCount });
 }

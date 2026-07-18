@@ -1,5 +1,6 @@
 import { SiteHeader } from "@/components/marketing/SiteHeader";
 import { SiteFooter } from "@/components/marketing/SiteFooter";
+import { CookieConsent } from "@/components/marketing/CookieConsent";
 import { organizationSchema, websiteSchema } from "@/lib/schema-org";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
@@ -16,6 +17,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <SiteHeader />
       <main className="flex-1">{children}</main>
       <SiteFooter />
+      <CookieConsent />
     </>
   );
 }

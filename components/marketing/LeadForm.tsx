@@ -2,6 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { LeadType, ServiceType } from "@prisma/client";
+import { trackEvent } from "@/lib/analytics";
 
 interface LeadFormProps {
   sourcePath: string;
@@ -43,6 +44,7 @@ export function LeadForm({
         body: JSON.stringify(payload),
       });
       if (!response.ok) throw new Error("submit failed");
+      trackEvent("contact_submit");
       setState("success");
     } catch {
       setState("error");
