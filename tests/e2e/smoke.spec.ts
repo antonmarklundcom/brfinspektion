@@ -46,6 +46,18 @@ test.describe("public site (architecture.md §9 test #5)", () => {
     await page.goto("/admin");
     await expect(page).toHaveURL(/\/admin\/logga-in/);
   });
+
+  test("guides index links to a guide with Article + FAQPage schema", async ({ page }) => {
+    await page.goto("/guider");
+    await page.getByRole("link", { name: /Stambyte eller relining/ }).click();
+
+    await expect(page).toHaveURL(/\/guider\/stambyte-eller-relining/);
+    const schemaTypes = await page
+      .locator('script[type="application/ld+json"]')
+      .evaluateAll((nodes) => nodes.map((n) => JSON.parse(n.textContent ?? "{}")["@type"]));
+    expect(schemaTypes).toContain("Article");
+    expect(schemaTypes).toContain("FAQPage");
+  });
 });
 
 test.describe("calculator lead capture", () => {
@@ -99,5 +111,24 @@ test.describe("admin", () => {
     await expect(page).toHaveURL(/\/admin$/, { timeout: 10_000 });
     await page.goto("/admin/leads");
     await expect(page.locator("h1")).toContainText("Leads");
+  });
+
+  test("owner can create a partner user in installningar", async ({ page }) => {
+    await page.goto("/admin/logga-in");
+    await page.fill("#email", process.env.SEED_OWNER_EMAIL!);
+    await page.fill("#password", process.env.SEED_OWNER_PASSWORD!);
+    await page.getByRole("button", { name: "Logga in" }).click();
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 10_000 });
+
+    await page.goto("/admin/installningar");
+    const email = `e2e-partner-${Date.now()}@example.com`;
+    await page.fill("#name", "E2E Partner Person");
+    await page.fill("#email", email);
+    await page.fill("#password", "password123!");
+    await page.selectOption("#role", "PARTNER");
+    await page.selectOption("#partnerId", { index: 1 }); // first real partner option
+    await page.getByRole("button", { name: "Skapa användare" }).click();
+
+    await expect(page.getByText(email)).toBeVisible({ timeout: 10_000 });
   });
 });
