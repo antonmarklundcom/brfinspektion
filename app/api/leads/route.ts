@@ -6,6 +6,7 @@ import { sendEmail, notifyEmailAddress } from "@/lib/email";
 import { calculate } from "@/lib/calculator";
 import { createLeadFollowUpTask } from "@/lib/followups";
 import { isRateLimited } from "@/lib/rate-limit";
+import { waMeLink } from "@/lib/phone";
 
 const baseSchema = z.object({
   type: z.nativeEnum(LeadType),
@@ -89,11 +90,14 @@ export async function POST(request: NextRequest) {
 
   await createLeadFollowUpTask(lead.id, lead.brfNamn);
 
+  const waLink = waMeLink(lead.telefon);
+
   await sendEmail({
     to: notifyEmailAddress(),
     subject: `Ny lead: ${lead.brfNamn}`,
     html: `<p>Ny lead från ${lead.sourcePath}.</p>
       <p>Kontakt: ${lead.kontaktNamn}, ${lead.epost}${lead.telefon ? `, ${lead.telefon}` : ""}</p>
+      ${waLink ? `<p><a href="${waLink}">Öppna i WhatsApp</a></p>` : ""}
       <p><a href="https://brfinspektion.se/admin/leads/${lead.id}">Öppna i admin</a></p>`,
   });
 

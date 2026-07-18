@@ -3,6 +3,14 @@ import { test, expect } from "@playwright/test";
 const hasDb = Boolean(process.env.DATABASE_URL);
 const hasOwnerCreds = Boolean(process.env.SEED_OWNER_EMAIL && process.env.SEED_OWNER_PASSWORD);
 
+async function loginAsOwner(page: import("@playwright/test").Page) {
+  await page.goto("/admin/logga-in");
+  await page.fill("#email", process.env.SEED_OWNER_EMAIL!);
+  await page.fill("#password", process.env.SEED_OWNER_PASSWORD!);
+  await page.getByRole("button", { name: "Logga in" }).click();
+  await page.waitForURL(/\/admin$/, { timeout: 10_000 });
+}
+
 test.describe("public site (architecture.md §9 test #5)", () => {
   test("homepage renders with title and FAQPage schema", async ({ page }) => {
     await page.goto("/");
@@ -130,5 +138,105 @@ test.describe("admin", () => {
     await page.getByRole("button", { name: "Skapa användare" }).click();
 
     await expect(page.getByText(email)).toBeVisible({ timeout: 10_000 });
+  });
+
+  test("owner can create a manual task and mark it done", async ({ page }) => {
+    await page.goto("/admin/logga-in");
+    await page.fill("#email", process.env.SEED_OWNER_EMAIL!);
+    await page.fill("#password", process.env.SEED_OWNER_PASSWORD!);
+    await page.getByRole("button", { name: "Logga in" }).click();
+    await expect(page).toHaveURL(/\/admin$/, { timeout: 10_000 });
+
+    await page.goto("/admin/uppgifter");
+    const title = `E2E manuell uppgift ${Date.now()}`;
+    await page.fill("#title", title);
+    await page.fill("#dueDate", "2027-01-01");
+    await page.getByRole("button", { name: "Lägg till uppgift" }).click();
+
+    const taskItem = page.locator("li", { hasText: title });
+    await expect(taskItem).toBeVisible({ timeout: 10_000 });
+
+    await taskItem.getByRole("button", { name: "Markera klar" }).click();
+    await expect(page.locator("li", { hasText: title })).toHaveCount(0, { timeout: 10_000 });
+  });
+
+  test("owner can set a project's contract value and add a customer note", async ({ page }) => {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    const customer = await prisma.customer.create({ data: { brfNamn: `Brf E2E ${Date.now()}` } });
+    const project = await prisma.project.create({
+      data: { customerId: customer.id, serviceType: "KONTROLLANSVARIG" },
+    });
+
+    await loginAsOwner(page);
+    await page.goto(`/admin/kunder/${customer.id}`);
+
+    await page.fill('input[name="contractValueSek"]', "275000");
+    await page.getByRole("button", { name: "Spara", exact: true }).click();
+    // toLocaleString("sv-SE") uses a non-breaking space as the thousands
+    // separator — \s in JS regex matches it.
+    await expect(page.getByText(/275\s000\sSEK/)).toBeVisible({ timeout: 10_000 });
+
+    const noteText = `E2E-anteckning ${Date.now()}`;
+    await page.fill('textarea[name="body"]', noteText);
+    await page.getByRole("button", { name: "Spara anteckning" }).click();
+    await expect(page.getByText(noteText)).toBeVisible({ timeout: 10_000 });
+
+    await prisma.project.delete({ where: { id: project.id } });
+    await prisma.note.deleteMany({ where: { customerId: customer.id } });
+    await prisma.customer.delete({ where: { id: customer.id } });
+    await prisma.$disconnect();
+  });
+
+  test("deactivating a user takes effect immediately on their existing session", async ({
+    browser,
+  }) => {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    const bcrypt = (await import("bcryptjs")).default;
+    const partner = await prisma.partner.create({ data: { name: `Deactivate Test ${Date.now()}` } });
+    const email = `deactivate-e2e-${Date.now()}@example.com`;
+    const password = "password123!";
+    const user = await prisma.user.create({
+      data: {
+        name: "To Be Deactivated",
+        email,
+        passwordHash: await bcrypt.hash(password, 12),
+        role: "PARTNER",
+        partnerId: partner.id,
+        active: true,
+      },
+    });
+
+    // Partner logs in in their own browser context (separate cookie jar).
+    const partnerContext = await browser.newContext();
+    const partnerPage = await partnerContext.newPage();
+    await partnerPage.goto("/admin/logga-in");
+    await partnerPage.fill("#email", email);
+    await partnerPage.fill("#password", password);
+    await partnerPage.getByRole("button", { name: "Logga in" }).click();
+    await partnerPage.waitForURL(/\/admin$/, { timeout: 10_000 });
+
+    // Owner deactivates them from a separate context.
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    await loginAsOwner(ownerPage);
+    await ownerPage.goto("/admin/installningar");
+    await ownerPage
+      .locator("tr", { hasText: email })
+      .getByRole("button", { name: "Inaktivera" })
+      .click();
+    await expect(ownerPage.locator("tr", { hasText: email })).toContainText("Inaktiv");
+
+    // The partner's existing session cookie is still there, but the next
+    // admin page load must bounce them to login (architecture.md §5).
+    await partnerPage.goto("/admin/leads");
+    await expect(partnerPage).toHaveURL(/\/admin\/logga-in/, { timeout: 10_000 });
+
+    await partnerContext.close();
+    await ownerContext.close();
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.partner.delete({ where: { id: partner.id } });
+    await prisma.$disconnect();
   });
 });

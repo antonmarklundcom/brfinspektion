@@ -3,7 +3,12 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { stripOwnerOnlyFields } from "@/lib/access";
-import { createProject, listProjectsForCustomer, markProjectCompleted } from "@/lib/projects";
+import {
+  createProject,
+  listProjectsForCustomer,
+  markProjectCompleted,
+  setProjectContractValue,
+} from "@/lib/projects";
 import { ServiceType } from "@prisma/client";
 
 const SERVICE_TYPE_LABELS: Record<ServiceType, string> = {
@@ -43,13 +48,28 @@ export default async function CustomerDetailPage({
     orderBy: { dueDate: "asc" },
   });
 
+  const notes =
+    session.user.role === "OWNER"
+      ? await prisma.note.findMany({
+          where: { customerId: id },
+          orderBy: { createdAt: "desc" },
+          include: { author: true },
+        })
+      : [];
+
   async function addProject(formData: FormData) {
     "use server";
     const currentSession = await auth();
     if (!currentSession?.user) return;
     const serviceType = formData.get("serviceType") as ServiceType;
     const partnerId = (formData.get("partnerId") as string) || null;
-    await createProject(currentSession.user, { customerId: id, serviceType, partnerId });
+    const contractValueRaw = formData.get("contractValueSek") as string;
+    await createProject(currentSession.user, {
+      customerId: id,
+      serviceType,
+      partnerId,
+      contractValueSek: contractValueRaw ? Number(contractValueRaw) : null,
+    });
     revalidatePath(`/admin/kunder/${id}`);
   }
 
@@ -61,6 +81,30 @@ export default async function CustomerDetailPage({
     const completedDateRaw = formData.get("completedDate") as string;
     if (!projectId || !completedDateRaw) return;
     await markProjectCompleted(currentSession.user, projectId, new Date(completedDateRaw));
+    revalidatePath(`/admin/kunder/${id}`);
+  }
+
+  async function updateContractValue(formData: FormData) {
+    "use server";
+    const currentSession = await auth();
+    if (!currentSession?.user) return;
+    const projectId = formData.get("projectId") as string;
+    const contractValueRaw = formData.get("contractValueSek") as string;
+    await setProjectContractValue(
+      currentSession.user,
+      projectId,
+      contractValueRaw ? Number(contractValueRaw) : null,
+    );
+    revalidatePath(`/admin/kunder/${id}`);
+  }
+
+  async function addNote(formData: FormData) {
+    "use server";
+    const currentSession = await auth();
+    if (!currentSession?.user?.id) return;
+    const body = formData.get("body") as string;
+    if (!body?.trim()) return;
+    await prisma.note.create({ data: { customerId: id, body, authorId: currentSession.user.id } });
     revalidatePath(`/admin/kunder/${id}`);
   }
 
@@ -92,26 +136,53 @@ export default async function CustomerDetailPage({
                     ? ` · ${safeProject.contractValueSek.toLocaleString("sv-SE")} SEK`
                     : ""}
                 </p>
-                {project.status !== "SLUTFORD" && (
-                  <form action={completeProject} className="mt-3 flex items-end gap-2">
-                    <input type="hidden" name="projectId" value={project.id} />
-                    <div>
-                      <label className="block text-xs text-slate-500">Avslutsdatum</label>
-                      <input
-                        type="date"
-                        name="completedDate"
-                        required
-                        className="mt-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
-                      />
-                    </div>
-                    <button
-                      type="submit"
-                      className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-slate-400"
-                    >
-                      Markera avslutad
-                    </button>
-                  </form>
-                )}
+                <div className="mt-3 flex flex-wrap items-end gap-2">
+                  {project.status !== "SLUTFORD" && (
+                    <form action={completeProject} className="flex items-end gap-2">
+                      <input type="hidden" name="projectId" value={project.id} />
+                      <div>
+                        <label className="block text-xs text-slate-500">Avslutsdatum</label>
+                        <input
+                          type="date"
+                          name="completedDate"
+                          required
+                          className="mt-1 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-slate-400"
+                      >
+                        Markera avslutad
+                      </button>
+                    </form>
+                  )}
+                  {session.user.role === "OWNER" && (
+                    <form action={updateContractValue} className="flex items-end gap-2">
+                      <input type="hidden" name="projectId" value={project.id} />
+                      <div>
+                        <label className="block text-xs text-slate-500">Ordervärde (SEK)</label>
+                        <input
+                          type="number"
+                          name="contractValueSek"
+                          min={0}
+                          defaultValue={
+                            "contractValueSek" in safeProject
+                              ? (safeProject.contractValueSek ?? undefined)
+                              : undefined
+                          }
+                          className="mt-1 w-32 rounded-md border border-slate-300 px-2 py-1 text-sm"
+                        />
+                      </div>
+                      <button
+                        type="submit"
+                        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-900 hover:border-slate-400"
+                      >
+                        Spara
+                      </button>
+                    </form>
+                  )}
+                </div>
               </li>
             );
           })}
@@ -153,6 +224,15 @@ export default async function CustomerDetailPage({
                 ))}
               </select>
             </div>
+            <div>
+              <label className="block text-xs text-slate-500">Ordervärde (SEK, valfritt)</label>
+              <input
+                type="number"
+                name="contractValueSek"
+                min={0}
+                className="mt-1 w-32 rounded-md border border-slate-300 px-3 py-2 text-sm"
+              />
+            </div>
             <button
               type="submit"
               className="rounded-md bg-blue-800 px-4 py-2 text-sm font-medium text-white hover:bg-blue-900"
@@ -177,6 +257,36 @@ export default async function CustomerDetailPage({
           )}
         </ul>
       </div>
+
+      {session.user.role === "OWNER" && (
+        <div className="mt-6 rounded-lg border border-slate-200 bg-white p-5">
+          <h2 className="font-medium text-slate-900">Anteckningar</h2>
+          <form action={addNote} className="mt-3">
+            <textarea
+              name="body"
+              rows={3}
+              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              placeholder="Lägg till en anteckning…"
+            />
+            <button
+              type="submit"
+              className="mt-2 rounded-md border border-slate-300 px-4 py-2 text-sm font-medium text-slate-900 hover:border-slate-400"
+            >
+              Spara anteckning
+            </button>
+          </form>
+          <ul className="mt-4 space-y-3">
+            {notes.map((note) => (
+              <li key={note.id} className="text-sm text-slate-600">
+                <p>{note.body}</p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {note.author.name} — {note.createdAt.toLocaleString("sv-SE")}
+                </p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }
