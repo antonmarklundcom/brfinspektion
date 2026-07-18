@@ -187,4 +187,56 @@ test.describe("admin", () => {
     await prisma.customer.delete({ where: { id: customer.id } });
     await prisma.$disconnect();
   });
+
+  test("deactivating a user takes effect immediately on their existing session", async ({
+    browser,
+  }) => {
+    const { PrismaClient } = await import("@prisma/client");
+    const prisma = new PrismaClient();
+    const bcrypt = (await import("bcryptjs")).default;
+    const partner = await prisma.partner.create({ data: { name: `Deactivate Test ${Date.now()}` } });
+    const email = `deactivate-e2e-${Date.now()}@example.com`;
+    const password = "password123!";
+    const user = await prisma.user.create({
+      data: {
+        name: "To Be Deactivated",
+        email,
+        passwordHash: await bcrypt.hash(password, 12),
+        role: "PARTNER",
+        partnerId: partner.id,
+        active: true,
+      },
+    });
+
+    // Partner logs in in their own browser context (separate cookie jar).
+    const partnerContext = await browser.newContext();
+    const partnerPage = await partnerContext.newPage();
+    await partnerPage.goto("/admin/logga-in");
+    await partnerPage.fill("#email", email);
+    await partnerPage.fill("#password", password);
+    await partnerPage.getByRole("button", { name: "Logga in" }).click();
+    await partnerPage.waitForURL(/\/admin$/, { timeout: 10_000 });
+
+    // Owner deactivates them from a separate context.
+    const ownerContext = await browser.newContext();
+    const ownerPage = await ownerContext.newPage();
+    await loginAsOwner(ownerPage);
+    await ownerPage.goto("/admin/installningar");
+    await ownerPage
+      .locator("tr", { hasText: email })
+      .getByRole("button", { name: "Inaktivera" })
+      .click();
+    await expect(ownerPage.locator("tr", { hasText: email })).toContainText("Inaktiv");
+
+    // The partner's existing session cookie is still there, but the next
+    // admin page load must bounce them to login (architecture.md §5).
+    await partnerPage.goto("/admin/leads");
+    await expect(partnerPage).toHaveURL(/\/admin\/logga-in/, { timeout: 10_000 });
+
+    await partnerContext.close();
+    await ownerContext.close();
+    await prisma.user.delete({ where: { id: user.id } });
+    await prisma.partner.delete({ where: { id: partner.id } });
+    await prisma.$disconnect();
+  });
 });
