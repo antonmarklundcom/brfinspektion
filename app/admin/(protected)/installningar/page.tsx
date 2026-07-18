@@ -38,7 +38,7 @@ export default async function InstallningarPage() {
           </tbody>
         </table>
       </div>
-      <p className="mt-4 text-sm text-slate-400">
+      <p className="mt-4 text-sm text-slate-500">
         Skapa nya användare via <code>prisma/seed.ts</code> eller ett kommande admin-formulär
         (Fas 2).
       </p>

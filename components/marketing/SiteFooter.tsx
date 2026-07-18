@@ -22,7 +22,7 @@ export function SiteFooter() {
           </div>
         </div>
         {/* TODO-ORG (plan.md D9): org.nr and legal identity pending operator input */}
-        <p className="mt-8 text-xs text-slate-400">
+        <p className="mt-8 text-xs text-slate-600">
           &copy; {new Date().getFullYear()} BRF Inspektion
         </p>
       </div>

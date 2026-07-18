@@ -26,7 +26,7 @@ export default async function UppgifterPage() {
             </p>
           </li>
         ))}
-        {tasks.length === 0 && <p className="text-slate-400">Inga väntande uppgifter.</p>}
+        {tasks.length === 0 && <p className="text-slate-500">Inga väntande uppgifter.</p>}
       </ul>
     </div>
   );

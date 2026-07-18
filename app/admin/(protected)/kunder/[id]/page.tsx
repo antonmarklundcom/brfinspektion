@@ -115,7 +115,7 @@ export default async function CustomerDetailPage({
               </li>
             );
           })}
-          {projects.length === 0 && <p className="text-slate-400">Inga projekt ännu.</p>}
+          {projects.length === 0 && <p className="text-slate-500">Inga projekt ännu.</p>}
         </ul>
 
         {session.user.role === "OWNER" && (
@@ -173,7 +173,7 @@ export default async function CustomerDetailPage({
             </li>
           ))}
           {tasks.length === 0 && (
-            <p className="text-slate-400">Inga uppföljningsuppgifter genererade ännu.</p>
+            <p className="text-slate-500">Inga uppföljningsuppgifter genererade ännu.</p>
           )}
         </ul>
       </div>
