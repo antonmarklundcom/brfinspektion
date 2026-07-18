@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { AccessSession, assertOwner, leadWhereForSession } from "@/lib/access";
 import { LeadStatus, Role } from "@prisma/client";
 import { sendEmail } from "@/lib/email";
+import { waMeLink } from "@/lib/phone";
 
 export async function listLeadsForSession(session: AccessSession) {
   return prisma.lead.findMany({
@@ -62,12 +63,14 @@ export async function assignLeadToPartner(
       where: { partnerId, role: Role.PARTNER, active: true },
     });
     if (partnerUsers.length > 0) {
+      const waLink = waMeLink(updated.telefon);
       await sendEmail({
         to: partnerUsers.map((user) => user.email),
         subject: `Ny lead tilldelad: ${updated.brfNamn}`,
         html: `<p>En lead har tilldelats er.</p>
           <p>Förening: ${updated.brfNamn}</p>
           <p>Kontakt: ${updated.kontaktNamn}, ${updated.epost}${updated.telefon ? `, ${updated.telefon}` : ""}</p>
+          ${waLink ? `<p><a href="${waLink}">Öppna i WhatsApp</a></p>` : ""}
           <p><a href="https://brfinspektion.se/admin/leads/${updated.id}">Öppna i admin</a></p>`,
       });
     }
