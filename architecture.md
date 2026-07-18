@@ -460,49 +460,83 @@ whitespace, WCAG AA contrast. Images: described placeholders only (per plan.md r
 Language rules: du-form throughout ("ni/er" when addressing the board collectively is
 correct and preferred on service pages), no anglicisms in headings, closed compounds.
 
-## 8. Deployment — Hostinger managed Node.js (operator playbook constraints)
+## 8. Deployment — Hostinger managed Node.js (verified against the operator's
+nextjs-deploy-hostinger playbook)
 
 ### 8.1 Build & run
 
-- `next build` with `output: 'standalone'`; deploy `.next/standalone` + `.next/static` +
-  `public` per the operator's existing nextjs-deploy-hostinger playbook conventions.
-- Node version: match Hostinger's available LTS (verify in hPanel; set `engines` in
-  package.json accordingly).
-- Env vars set in hPanel (never committed): `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`,
-  `AUTH_URL=https://brfinspektion.se`, `RESEND_API_KEY`, `NOTIFY_EMAIL`, `CRON_SECRET`,
-  `NEXT_PUBLIC_GA_ID`, `SEED_OWNER_EMAIL`, `SEED_OWNER_PASSWORD`.
+Hostinger's **managed Node.js Apps** feature deploys straight from a GitHub repo — no manual
+SSH file copying, no PM2, no Nginx config. hPanel → **Websites → Add Website → Node.js
+Apps → Import Git Repository**, authorize GitHub, pick `antonmarklundcom/brfinspektion` and
+the `main` branch. It auto-detects Next.js and runs `npm run build` then `npm start`.
 
-### 8.2 Known pitfalls (from operator's playbook — handle proactively)
+**Do not set `output: "standalone"` in `next.config.ts`.** `next start` does not work
+correctly against a standalone build (confirmed directly: running `npm run build && npm run
+start` with `output: "standalone"` set prints `"next start" does not work with "output:
+standalone" configuration` and does not serve the app correctly). Since Hostinger's deploy
+runs plain `npm start`, the default (non-standalone) build output is what must ship — this
+repo's `next.config.ts` deliberately has no `output` override; do not add one back.
 
-1. **Hostinger IPv6 → Neon routing issue:** connections to Neon can fail when the Neon
-   hostname resolves to IPv6 on Hostinger's network. Mitigations (apply both):
-   use the **pooled** `-pooler` connection string as `DATABASE_URL`, and set
-   `NODE_OPTIONS=--dns-result-order=ipv4first` in the hPanel environment. Verify with a
-   production DB round-trip at Phase 0 exit. If still failing, document and escalate to
-   operator rather than disabling TLS or hacking DNS.
-2. **SSH npm PATH issue:** non-interactive SSH sessions on Hostinger may not have
-   node/npm on PATH. All deploy scripts in `scripts/` must source the profile or use
-   absolute binary paths (discover with `which node` in an interactive session, hardcode
-   into `scripts/deploy-remote.sh` with a comment). Never assume `npm` resolves in a bare
-   `ssh host "npm ..."` call.
+Node version: select **Node.js 22** in the Hostinger app settings (matches this repo's
+`engines.node` in `package.json` and the version used in CI). Build command `npm run build`,
+start command `npm start` — both auto-detected, verify them rather than assuming.
+
+Env vars set in hPanel (never committed): `DATABASE_URL`, `DIRECT_URL`, `AUTH_SECRET`,
+`AUTH_URL` (the real deployed URL — the temporary `*.hostingersite.com` one at first, updated
+to `https://brfinspektion.se` + redeployed once the custom domain is mapped), `RESEND_API_KEY`,
+`NOTIFY_EMAIL`, `CRON_SECRET`, `NEXT_PUBLIC_GA_ID`. `SEED_OWNER_EMAIL`/`SEED_OWNER_PASSWORD`
+are only needed locally when running the seed script against production (§8.3) — harmless to
+also set in hPanel, not required there.
+
+### 8.2 Known pitfalls (verified from real Hostinger deployments — handle proactively)
+
+1. **Hostinger SSH → Neon IPv6 routing is broken, with no reliable server-side fix.**
+   Hostinger's shared servers resolve Neon's Postgres hostname to IPv6 and the connection
+   fails from an SSH shell; pooler endpoints, `NODE_OPTIONS=--dns-result-order=ipv4first`,
+   and connection-string IP overrides were all tried on real deployments and none reliably
+   fixed the SSH-shell case. **The working procedure is to never run Prisma commands via
+   Hostinger SSH at all** — run `prisma migrate deploy` and the seed script from the
+   operator's local machine instead (§8.3), where outbound IPv4 to Neon works normally. The
+   deployed app's own runtime DB connection is a separate network path from the SSH shell —
+   verify it works (a real lead write) rather than assuming it inherits the SSH problem.
+2. **SSH npm/npx PATH issue** (only relevant if SSH is used for anything, which should be
+   rare with the managed GitHub-integration flow): non-interactive SSH sessions don't have
+   node/npm on PATH by default. Activate manually, e.g.
+   `export PATH=/opt/alt/alt-nodejs22/root/usr/bin:$PATH` (confirm the exact version
+   directory under `/opt/alt/` in an interactive session first — don't guess it).
 3. **Windows PowerShell UTF-16 pitfall:** the operator runs Prisma commands locally on
-   Windows. Any instruction (README/scripts) that redirects output to a file
-   (`... > .env`, `Out-File`) must specify `-Encoding utf8` / use `Set-Content -Encoding utf8`,
-   because PowerShell's default UTF-16 output corrupts `.env` and `schema.prisma` for
-   Prisma's parser. Put this warning verbatim in README's local-setup section.
+   Windows. Never create `.env` via `>` redirect — PowerShell's default UTF-16 output
+   corrupts `.env` and `schema.prisma` for Prisma's parser. Use
+   `Set-Content -Path .env -Value '...' -Encoding utf8`. Also: if `npm`/`npx` are blocked by
+   execution policy, `Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned`
+   fixes it once.
 
 ### 8.3 Migrations
 
-`prisma migrate deploy` against `DIRECT_URL` as an explicit deploy step (script), never auto
-on app boot. Seed runs once manually.
+Run `prisma migrate deploy` and `npm run db:seed` **from the operator's local machine**
+against the production `DATABASE_URL`/`DIRECT_URL` (see 8.2 point 1 — not via Hostinger SSH,
+not as an automatic step on app boot). One-time per schema change / initial deploy.
 
 ### 8.4 Domains
 
-- `brfinspektion.se` → the app (HTTPS via Hostinger).
+- `brfinspektion.se` → the app (HTTPS via Hostinger, mapped in the app's domain settings).
 - `brfentreprenad.se` → **301** to `https://brfinspektion.se/upphandling`. Prefer
   hosting/DNS-level redirect; if the domain must be pointed at the same app instead,
-  `middleware.ts` matches `host === 'brfentreprenad.se'` (and `www.`) and returns a 301.
+  `proxy.ts` matches `host === 'brfentreprenad.se'` (and `www.`) and returns a 301.
   Also canonicalize `www.brfinspektion.se` → apex (or the reverse — pick apex) with 301.
+
+### 8.5 Post-deploy checklist
+
+- [ ] App loads on the Hostinger URL, then on the custom domain with valid SSL.
+- [ ] `AUTH_URL` matches the final domain (redeploy after changing it).
+- [ ] Login works with real Owner credentials — rotate the seed password immediately if a
+      placeholder was ever used to seed production.
+- [ ] A real calculator or contact submission writes a `Lead` row (verify in `/admin/leads`
+      or Prisma Studio against the production DB) and the notification email arrives.
+- [ ] `/sitemap.xml` and `/robots.txt` are reachable on the live domain.
+- [ ] Which Hostinger account and how many Node.js app slots remain is noted somewhere the
+      operator can find it later (slots are a scarce, shared resource across the operator's
+      other projects).
 
 ## 9. Testing & CI
 
@@ -528,9 +562,10 @@ do not skip):
 
 ## 10. Open technical questions — CONFIRM, don't assume
 
-1. **Hostinger plan capabilities:** does the operator's plan support hPanel cron + the
-   standalone Node deployment as assumed in §8? If the playbook repo/notes are available to
-   the executing model, follow them over §8 where they conflict, and note the conflict.
+1. **Hostinger plan capabilities:** does the operator's plan support hPanel cron (§6.4)? §8's
+   deploy flow itself (managed GitHub-integration Node.js Apps) is confirmed against the
+   operator's real playbook, not assumed — no longer an open question. If the playbook
+   repo/notes evolve further, follow them over §8 where they conflict, and note the conflict.
 2. **Resend vs Hostinger SMTP** (§1) — operator picks; code is provider-agnostic behind
    `lib/email.ts`.
 3. **Neon region/org** — reuse operator's existing Neon account/org and region if one exists.
