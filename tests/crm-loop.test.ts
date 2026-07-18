@@ -12,14 +12,16 @@ describe.skipIf(!hasDb)("CRM loop (lib/customers.ts, lib/projects.ts)", () => {
   let markProjectCompleted: typeof import("@/lib/projects").markProjectCompleted;
   let createProject: typeof import("@/lib/projects").createProject;
   let getProjectForSession: typeof import("@/lib/projects").getProjectForSession;
+  let setProjectContractValue: typeof import("@/lib/projects").setProjectContractValue;
+  let assignLeadToPartner: typeof import("@/lib/leads").assignLeadToPartner;
 
   beforeAll(async () => {
     const { PrismaClient } = await import("@prisma/client");
     prisma = new PrismaClient();
     ({ convertLeadToCustomer } = await import("@/lib/customers"));
-    ({ markProjectCompleted, createProject, getProjectForSession } = await import(
-      "@/lib/projects"
-    ));
+    ({ markProjectCompleted, createProject, getProjectForSession, setProjectContractValue } =
+      await import("@/lib/projects"));
+    ({ assignLeadToPartner } = await import("@/lib/leads"));
   });
 
   afterAll(async () => {
@@ -105,5 +107,50 @@ describe.skipIf(!hasDb)("CRM loop (lib/customers.ts, lib/projects.ts)", () => {
     ).rejects.toThrow();
 
     await prisma.customer.delete({ where: { id: customer.id } });
+  });
+
+  it("sets and updates contractValueSek, OWNER-only, hidden from PARTNER-visible payloads", async () => {
+    const customer = await prisma.customer.create({ data: { brfNamn: "Brf Contract Test" } });
+    const owner = { role: "OWNER" as const, partnerId: null };
+
+    const project = await createProject(owner, {
+      customerId: customer.id,
+      serviceType: "KONTROLLANSVARIG",
+      contractValueSek: 250_000,
+    });
+    expect(project.contractValueSek).toBe(250_000);
+
+    const updated = await setProjectContractValue(owner, project.id, 300_000);
+    expect(updated.contractValueSek).toBe(300_000);
+
+    const sessionForPartner = { role: "PARTNER" as const, partnerId: "some-partner" };
+    await expect(setProjectContractValue(sessionForPartner, project.id, 999)).rejects.toThrow();
+
+    await prisma.project.delete({ where: { id: project.id } });
+    await prisma.customer.delete({ where: { id: customer.id } });
+  });
+
+  it("assignLeadToPartner sets assignedPartnerId and does not throw when partner has no users yet", async () => {
+    const partner = await prisma.partner.create({ data: { name: `Assign Test ${Date.now()}` } });
+    const lead = await prisma.lead.create({
+      data: {
+        type: "CONTACT",
+        sourcePath: "/kontakt",
+        kontaktNamn: "Test",
+        epost: "assign-test@example.com",
+        brfNamn: "Brf Assign Test",
+        consentAt: new Date(),
+      },
+    });
+
+    const owner = { role: "OWNER" as const, partnerId: null };
+    const updated = await assignLeadToPartner(owner, lead.id, partner.id);
+    expect(updated?.assignedPartnerId).toBe(partner.id);
+
+    const sessionForPartner = { role: "PARTNER" as const, partnerId: partner.id };
+    await expect(assignLeadToPartner(sessionForPartner, lead.id, partner.id)).rejects.toThrow();
+
+    await prisma.lead.delete({ where: { id: lead.id } });
+    await prisma.partner.delete({ where: { id: partner.id } });
   });
 });

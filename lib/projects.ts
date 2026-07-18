@@ -20,11 +20,15 @@ export interface CreateProjectInput {
   partnerId?: string | null;
   startDate?: Date | null;
   description?: string | null;
+  contractValueSek?: number | null;
 }
 
 /**
  * OWNER-only: creating a project is a business commitment (which partner
  * delivers which tier), same rationale as convertLeadToCustomer.
+ * contractValueSek is OWNER-only info end to end — stripOwnerOnlyFields in
+ * lib/access.ts already strips it back out of anything a PARTNER session
+ * reads, so it's safe to accept it here without a separate check.
  */
 export async function createProject(session: AccessSession, input: CreateProjectInput) {
   if (session.role !== "OWNER") {
@@ -37,9 +41,25 @@ export async function createProject(session: AccessSession, input: CreateProject
       partnerId: input.partnerId ?? null,
       startDate: input.startDate ?? null,
       description: input.description ?? null,
+      contractValueSek: input.contractValueSek ?? null,
       status: "PLANERAD",
     },
   });
+}
+
+/**
+ * OWNER-only: update the contract value on an existing project (e.g. once
+ * a deal is actually signed, after the project row already exists).
+ */
+export async function setProjectContractValue(
+  session: AccessSession,
+  projectId: string,
+  contractValueSek: number | null,
+) {
+  if (session.role !== "OWNER") {
+    throw new Error("Only OWNER may set contract value");
+  }
+  return prisma.project.update({ where: { id: projectId }, data: { contractValueSek } });
 }
 
 /**

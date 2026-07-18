@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { TaskStatus } from "@prisma/client";
+import { Role, TaskStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { sendEmail, notifyEmailAddress } from "@/lib/email";
 import { sendDailyDigest } from "@/lib/digest";
@@ -34,8 +34,15 @@ export async function GET(request: NextRequest) {
 
   for (const task of dueTasks) {
     const recipients = [notifyEmailAddress()];
-    // Partner notification is opt-in until partner user records exist with
-    // verified email addresses managed in /admin/installningar (Phase 2).
+    // architecture.md §6.1: task-due notifications also go to the
+    // assigned partner, now that partner user records exist
+    // (/admin/installningar, PR #6).
+    if (task.partnerId) {
+      const partnerUsers = await prisma.user.findMany({
+        where: { partnerId: task.partnerId, role: Role.PARTNER, active: true },
+      });
+      recipients.push(...partnerUsers.map((user) => user.email));
+    }
     await sendEmail({
       to: recipients,
       subject: `Uppgift förfaller: ${task.title}`,
