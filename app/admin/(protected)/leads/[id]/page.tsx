@@ -171,7 +171,7 @@ export default async function LeadDetailPage({
             {notes.map((note) => (
               <li key={note.id} className="text-sm text-slate-600">
                 <p>{note.body}</p>
-                <p className="mt-1 text-xs text-slate-400">
+                <p className="mt-1 text-xs text-slate-500">
                   {note.author.name} — {note.createdAt.toLocaleString("sv-SE")}
                 </p>
               </li>
