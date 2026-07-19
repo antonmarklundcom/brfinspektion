@@ -96,6 +96,56 @@ export const GUIDES: Guide[] = [
       },
     ],
   },
+  {
+    slug: "styrelsens-ansvar-vid-stambyte",
+    title: "Styrelsens ansvar vid stambyte enligt bostadsrättslagen",
+    description:
+      "Vad bostadsrättslagen kräver av styrelsen vid ett stambyte — beslutsunderlag, informationsplikt gentemot medlemmarna och varför ansvaret inte upphör vid entreprenadens slut.",
+    publishedAt: "2026-07-19",
+    body: [
+      "Bostadsrättslagen lägger ansvaret för fastighetens skötsel och underhåll på styrelsen, och ett stambyte är typiskt den enskilt största åtgärd en styrelse fattar beslut om under en mandatperiod. Ansvaret handlar inte bara om att fatta rätt beslut, utan om att kunna visa att beslutet var underbyggt.",
+      "Ett välgrundat beslutsunderlag utgår normalt från en statusbesiktning av stammarnas skick, en realistisk kostnadsbild och en tydlig bild av hur projektet påverkar boende under byggtiden. Att fatta beslut utan detta underlag ökar risken för att medlemmar ifrågasätter processen i efterhand.",
+      "Styrelsens informationsplikt gentemot medlemmarna gäller genom hela projektet — inte bara vid beslutet om avgiftshöjning. Löpande information om tidplan, omfattning och eventuella avvikelser minskar risken för konflikter under byggtiden.",
+      "Ansvaret upphör inte när entreprenaden är klar. En genomförd garantibesiktning vid två och fem år är styrelsens sätt att säkerställa att entreprenören åtgärdar eventuella brister inom garantitiden — att missa den tidpunkten kan innebära att föreningen förlorar rätten att kräva åtgärd kostnadsfritt.",
+    ],
+    faq: [
+      {
+        question: "Kan styrelsen bli personligt ansvarig om ett stambyte blir fel?",
+        answer:
+          "Styrelseledamöter kan bli skadeståndsskyldiga om de agerat uppsåtligt eller av grov oaktsamhet, till exempel genom att fatta beslut utan rimligt underlag. Ett dokumenterat beslutsunderlag och besiktningar minskar den risken väsentligt.",
+      },
+      {
+        question: "Måste styrelsen informera samtliga medlemmar innan beslut om stambyte fattas?",
+        answer:
+          "Beslutet fattas av styrelsen (eller föreningsstämman, beroende på åtgärdens omfattning och stadgarna), men god praxis är löpande information till medlemmarna genom hela processen, inte bara vid själva beslutet.",
+      },
+    ],
+  },
+  {
+    slug: "stambyte-hsb-riksbyggen-ansluten-forening",
+    title: "Stambyte i HSB- eller Riksbyggen-ansluten förening — vad gäller?",
+    description:
+      "Skillnaden mellan att låta HSB eller Riksbyggen driva stambytet och att upphandla oberoende, och vad styrelsen bör tänka på i en ansluten förening.",
+    publishedAt: "2026-07-19",
+    body: [
+      "En bostadsrättsförening ansluten till HSB eller Riksbyggen kan normalt välja att låta organisationen driva stambytet genom sin egen projektledning, eller att upphandla projektet fristående. Anslutningen innebär inte en skyldighet att använda organisationens egna entreprenörer eller besiktningsmän.",
+      "Fördelen med att gå via organisationens etablerade process är en beprövad struktur och färre okända moment för en styrelse utan tidigare erfarenhet av stora ombyggnadsprojekt. Nackdelen kan vara mindre insyn i vad som faktiskt upphandlas till vilket pris, jämfört med en process där styrelsen själv tar in konkurrerande offerter.",
+      "Oavsett spår kvarstår styrelsens ansvar enligt bostadsrättslagen att fatta ett underbyggt beslut. En oberoende statusbesiktning och en oberoende kontrollansvarig ger styrelsen ett underlag som inte är beroende av vem som senare utför eller leder entreprenaden.",
+      "Föreningar som redan är anslutna till HSB eller Riksbyggen kan med fördel komplettera den interna processen med en fristående besiktning inför beslutet, snarare än att välja bort organisationens stöd helt.",
+    ],
+    faq: [
+      {
+        question: "Måste en HSB-ansluten förening använda HSB:s egna entreprenörer vid stambyte?",
+        answer:
+          "Nej. Anslutningen ger tillgång till HSB:s stöd och projektledning, men föreningen kan välja att upphandla fristående om styrelsen bedömer att det ger ett bättre utfall.",
+      },
+      {
+        question: "Ger en oberoende besiktning något mervärde om föreningen redan får stöd av Riksbyggen?",
+        answer:
+          "Ja — en oberoende statusbesiktning eller kontrollansvarig ger styrelsen ett underlag som inte är kopplat till samma organisation som senare kan komma att driva eller leverera projektet.",
+      },
+    ],
+  },
 ];
 
 export function getGuideBySlug(slug: string): Guide | undefined {
