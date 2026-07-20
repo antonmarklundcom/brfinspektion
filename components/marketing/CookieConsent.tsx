@@ -33,17 +33,23 @@ function setConsent(value: "granted" | "denied") {
 export function CookieConsent() {
   const consent = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
   const gaId = process.env.NEXT_PUBLIC_GA_ID;
+  const adsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID;
+  // Ads tag reuses the GA4 gtag.js loader (same script covers both IDs) — only
+  // load it standalone if GA4 is blank but an Ads ID is set (shouldn't happen
+  // in practice, but keeps the two envs independently configurable).
+  const gtagSrcId = gaId ?? adsId;
 
   return (
     <>
-      {consent === "granted" && gaId && (
+      {consent === "granted" && gtagSrcId && (
         <>
-          <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} strategy="afterInteractive" />
+          <Script src={`https://www.googletagmanager.com/gtag/js?id=${gtagSrcId}`} strategy="afterInteractive" />
           <Script id="ga4-init" strategy="afterInteractive">
             {`window.dataLayer = window.dataLayer || [];
               function gtag(){dataLayer.push(arguments);}
               gtag('js', new Date());
-              gtag('config', '${gaId}');`}
+              ${gaId ? `gtag('config', '${gaId}');` : ""}
+              ${adsId ? `gtag('config', '${adsId}');` : ""}`}
           </Script>
         </>
       )}

@@ -108,6 +108,7 @@ SSH/PM2/Nginx needed) — the `nextjs-deploy-hostinger` playbook's standard path
 | `NOTIFY_EMAIL` | Where new-lead / digest emails go |
 | `CRON_SECRET` | Long random string; must match what the external cron sends as `Authorization: Bearer …` |
 | `NEXT_PUBLIC_GA_ID` | Leave blank until a real GA4 property exists |
+| `NEXT_PUBLIC_GOOGLE_ADS_ID` / `NEXT_PUBLIC_GOOGLE_ADS_CALCULATOR_LABEL` / `NEXT_PUBLIC_GOOGLE_ADS_CONTACT_LABEL` | Leave blank until the Ads go-live checklist (strategy.md §6.4) is cleared — see `docs/google-ads-campaigns.md` |
 | `SEED_OWNER_EMAIL` / `SEED_OWNER_PASSWORD` | Only needed locally when running `npm run db:seed` against production — not required as a live hPanel var, but harmless to set |
 
 ## Creating a partner user
