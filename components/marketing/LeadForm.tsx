@@ -81,8 +81,7 @@ export function LeadForm({
         <div className="md:col-span-3">
           {state === "success" ? (
             <div className="flex h-full flex-col items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center text-green-900">
-              <p className="font-medium">Tack för ert meddelande!</p>
-              <p className="mt-1 text-sm">Vi återkommer inom kort.</p>
+              <p className="font-medium">Tack! Vi återkommer inom kort.</p>
             </div>
           ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
