@@ -3,6 +3,13 @@
 import { FormEvent, useState } from "react";
 import { LeadType, ServiceType } from "@prisma/client";
 import { trackEvent } from "@/lib/analytics";
+import { IconShield, IconClipboard, IconUserCheck } from "./icons";
+
+const REASSURANCE = [
+  { icon: IconClipboard, text: "Kostnadsfritt och utan bindning" },
+  { icon: IconShield, text: "Oberoende av entreprenörer" },
+  { icon: IconUserCheck, text: "Ni får en fast kontaktperson" },
+];
 
 interface LeadFormProps {
   sourcePath: string;
@@ -51,18 +58,34 @@ export function LeadForm({
     }
   }
 
-  if (state === "success") {
-    return (
-      <div className="rounded-lg border border-green-200 bg-green-50 p-6 text-green-900">
-        Tack! Vi återkommer inom kort.
-      </div>
-    );
-  }
-
   return (
-    <section className="mx-auto max-w-2xl px-4 py-16">
-      <h2 className="text-2xl font-semibold text-slate-900">{heading}</h2>
-      <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+    <section className="mx-auto max-w-5xl px-4 py-16 md:py-20">
+      <div className="grid gap-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm shadow-slate-900/5 md:grid-cols-5 md:p-10">
+        <div className="md:col-span-2">
+          <h2 className="text-2xl font-semibold text-slate-900">{heading}</h2>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600">
+            Berätta kort om er förening så återkommer vi med besked om hur vi kan hjälpa er.
+          </p>
+          <ul className="mt-6 space-y-4">
+            {REASSURANCE.map(({ icon: Icon, text }) => (
+              <li key={text} className="flex items-center gap-3 text-sm text-slate-700">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-800">
+                  <Icon className="h-4 w-4" />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+        </div>
+
+        <div className="md:col-span-3">
+          {state === "success" ? (
+            <div className="flex h-full flex-col items-center justify-center rounded-lg border border-green-200 bg-green-50 p-8 text-center text-green-900">
+              <p className="font-medium">Tack för ert meddelande!</p>
+              <p className="mt-1 text-sm">Vi återkommer inom kort.</p>
+            </div>
+          ) : (
+          <form onSubmit={handleSubmit} className="space-y-4">
         <input
           type="text"
           name="website"
@@ -149,7 +172,10 @@ export function LeadForm({
         {state === "error" && (
           <p className="text-sm text-red-700">Något gick fel. Försök igen om en stund.</p>
         )}
-      </form>
+          </form>
+          )}
+        </div>
+      </div>
     </section>
   );
 }
