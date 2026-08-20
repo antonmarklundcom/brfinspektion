@@ -5,6 +5,10 @@ on:
   push:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   DATABASE_URL: postgresql://postgres:postgres@localhost:5432/brfinspektion_ci
   DIRECT_URL: postgresql://postgres:postgres@localhost:5432/brfinspektion_ci
@@ -18,6 +22,7 @@ env:
 jobs:
   lint-typecheck-test:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     services:
       postgres:
         image: postgres:16
@@ -47,6 +52,7 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     services:
       postgres:
         image: postgres:16
