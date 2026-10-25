@@ -7,17 +7,18 @@ import { calculate } from "@/lib/calculator";
 import { createLeadFollowUpTask } from "@/lib/followups";
 import { isRateLimited } from "@/lib/rate-limit";
 import { waMeLink } from "@/lib/phone";
+import { calculatorLeadEmailHtml, cleanSubject, operatorLeadEmailHtml } from "@/lib/lead-email";
 
 const baseSchema = z.object({
   type: z.nativeEnum(LeadType),
-  sourcePath: z.string().min(1),
-  kontaktNamn: z.string().min(1),
-  epost: z.string().email(),
-  telefon: z.string().optional(),
-  roll: z.string().optional(),
-  brfNamn: z.string().min(1),
-  kommun: z.string().optional(),
-  message: z.string().optional(),
+  sourcePath: z.string().min(1).max(300).startsWith("/"),
+  kontaktNamn: z.string().min(1).max(200),
+  epost: z.string().email().max(254),
+  telefon: z.string().max(50).optional(),
+  roll: z.string().max(200).optional(),
+  brfNamn: z.string().min(1).max(200),
+  kommun: z.string().max(200).optional(),
+  message: z.string().max(5000).optional(),
   interestedIn: z.nativeEnum(ServiceType).optional(),
   consent: z.literal(true),
   // honeypot — real users never fill this in
@@ -94,23 +95,15 @@ export async function POST(request: NextRequest) {
 
   await sendEmail({
     to: notifyEmailAddress(),
-    subject: `Ny lead: ${lead.brfNamn}`,
-    html: `<p>Ny lead från ${lead.sourcePath}.</p>
-      <p>Kontakt: ${lead.kontaktNamn}, ${lead.epost}${lead.telefon ? `, ${lead.telefon}` : ""}</p>
-      ${waLink ? `<p><a href="${waLink}">Öppna i WhatsApp</a></p>` : ""}
-      <p><a href="https://brfinspektion.se/admin/leads/${lead.id}">Öppna i admin</a></p>`,
+    subject: cleanSubject(`Ny lead: ${lead.brfNamn}`),
+    html: operatorLeadEmailHtml(lead, waLink),
   });
 
   if (calculatorData) {
     await sendEmail({
       to: lead.epost,
       subject: "Er kostnadsuppskattning från BRF Inspektion",
-      html: `<p>Hej ${lead.kontaktNamn},</p>
-        <p>Baserat på uppgifterna ni angav är en grov uppskattning
-        ${calculatorData.rangeLowSek.toLocaleString("sv-SE")}–${calculatorData.rangeHighSek.toLocaleString("sv-SE")} SEK.
-        Riskbedömning: ${calculatorData.riskBand}.</p>
-        <p>Detta är en grov uppskattning, inte en offert. Boka en statusbesiktning för en
-        korrekt bedömning: <a href="https://brfinspektion.se/statusbesiktning">brfinspektion.se/statusbesiktning</a></p>`,
+      html: calculatorLeadEmailHtml(lead.kontaktNamn, calculatorData),
     });
   }
 
